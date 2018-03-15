@@ -1,0 +1,58 @@
+﻿@model WebApplication6.Models.IndexViewModel
+@{
+    ViewBag.Title = "Repositories GitHub";
+}
+<div>
+    <h1>Meus repositórios</h1>
+    <ul>
+        @foreach (var repository in Model.Repositories)
+        {
+            <li><strong>Nome do repositório: </strong><a href="@repository.HtmlUrl">@repository.FullName</a></li>
+            <li><strong>Descrição: </strong>@repository.Description<br /></li>
+            <li><strong>Números de Forks: </strong>@repository.ForksCount<br /></li>
+            <li><strong>Clone URL: </strong>@repository.CloneUrl<br /></li>
+            <li><strong>URL: </strong>@repository.HtmlUrl<br /></li>
+            <li><strong>Criado em: </strong>@String.Format("{0:dd/MM/yyyy HH:mm:ss}", repository.CreatedAt)<br /></li>
+        }
+    </ul>
+</div>
+
+<div class="row">
+    <div class="text-left">
+        <button class="buttonList">Listar linguagens<i aria-hidden="true"></i></button>
+    </div>
+</div>
+
+<!--Carrega partial Linguagens de programacao-->
+<div id="listGetAllLanguages"></div>
+<!--Carrega partial Linguagens de programacao-->
+@Scripts.Render("~/bundles/jquery")
+<script type="text/javascript">
+    function getAllLanguages() {
+        $('#listGetAllLanguages').html('<span class="fa fa-search"> Aguarde...</span>');
+        $.ajax(
+            {
+                url: "/home/GetAllLanguages",
+                type: "GET",
+                dataType: "json",
+                cache: false,
+                success: function (data) {
+                    var lang = "<ul>";
+                    $(eval(data)).each(function () {
+                        lang += "<li><a href=\"#\">" + this.Name + "</a></li>";
+                    });
+                    lang += "</ul>";
+                    $('#listGetAllLanguages').html(lang);
+                },
+                error: function (data, textStatus, jqXhr) {
+                    alert("Erro ao listar Linguagens" + data);
+                }
+            });
+    }
+
+    $(document).ready(function () {
+        $(".buttonList").click(function () {
+            getAllLanguages();
+        });
+    });
+</script>
