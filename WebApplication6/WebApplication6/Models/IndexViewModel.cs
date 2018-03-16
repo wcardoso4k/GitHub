@@ -1,15 +1,14 @@
 ﻿using System.Collections.Generic;
-using Octokit;
 
 namespace WebApplication6.Models
 {
     public class IndexViewModel
     {
-        public IndexViewModel(IEnumerable<Repository> repositories)
+        public IndexViewModel(IEnumerable<RepositoryGitHub> repositories)
         {
             Repositories = repositories;
         }
 
-        public IEnumerable<Repository> Repositories { get; private set; }
+        public IEnumerable<RepositoryGitHub> Repositories { get; private set; }
     }
 }

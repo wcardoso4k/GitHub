@@ -1,9 +1,12 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Web.Mvc;
 using System.Web.Security;
 using Newtonsoft.Json;
 using Octokit;
+using WebApplication6.db;
 using WebApplication6.Models;
 
 namespace WebApplication6.Controllers
@@ -23,6 +26,38 @@ namespace WebApplication6.Controllers
 
         #endregion
 
+        #region Inicilização do entity framework
+
+        private readonly GiHubContext _context;
+
+        #endregion
+
+        #region GitHub Info
+
+        private const string Ownwer = "wcardoso4k";
+        private const string RepositoryName = "GitHub";
+
+        #endregion
+
+        #region Construtor
+
+        /// <summary>
+        /// Construtor
+        /// </summary>
+        public HomeController()
+        {
+            if (_context == null)
+                _context = new GiHubContext();
+        }
+
+        #endregion
+
+        #region View
+
+        /// <summary>
+        /// Página principal
+        /// </summary>
+        /// <returns></returns>
         public async Task<ActionResult> Index()
         {
             var accessToken = Session["OAuthToken"] as string;
@@ -38,7 +73,14 @@ namespace WebApplication6.Controllers
                 // The following requests retrieves all of the user's repositories and
                 // requires that the user be logged in to work.
                 var repositories = await _client.Repository.GetAllForCurrent();
-                var model = new IndexViewModel(repositories);
+
+                // Salva os detalhes de cada repositorio no BD
+                var newRepository = await SaveRepositorys(repositories);
+
+                // Load no objeto para visualizar a view
+                var model = new IndexViewModel(newRepository);
+
+                // Carrega view com o objeto
                 return View(model);
             }
             catch (AuthorizationException)
@@ -50,14 +92,12 @@ namespace WebApplication6.Controllers
             }
         }
 
-        public async Task<JsonResult> GetAllLanguages()
-        {
-            var getLanguages = await _client.Repository.GetAllLanguages("wcardoso4k", "azureRestAPIGitHub");
-            string json = JsonConvert.SerializeObject(getLanguages);
-            return Json(json, JsonRequestBehavior.AllowGet);
-        }
-
-        // This is the Callback URL that the GitHub OAuth Login page will redirect back to.
+        /// <summary>
+        /// Redireciona para página localhost após autenticar no gitbug e obter os parâmetros do método.
+        /// </summary>
+        /// <param name="code"></param>
+        /// <param name="state"></param>
+        /// <returns></returns>
         public async Task<ActionResult> Authorize(string code, string state)
         {
             if (String.IsNullOrEmpty(code))
@@ -73,6 +113,30 @@ namespace WebApplication6.Controllers
             return RedirectToAction("Index");
         }
 
+
+        #endregion
+
+        #region JsonResult
+
+        /// <summary>
+        /// Busca as linguagens de programação no repositorios
+        /// </summary>
+        /// <returns></returns>
+        public async Task<JsonResult> GetAllLanguages()
+        {
+            var getLanguages = await _client.Repository.GetAllLanguages(Ownwer, RepositoryName);
+            var json = JsonConvert.SerializeObject(getLanguages);
+            return Json(json, JsonRequestBehavior.AllowGet);
+        }
+
+        #endregion
+
+        #region Autenticação Oauth
+
+        /// <summary>
+        /// Retorna endereço URL localhost
+        /// </summary>
+        /// <returns></returns>
         private string GetOauthLoginUrl()
         {
             string csrf = Membership.GeneratePassword(24, 1);
@@ -81,11 +145,54 @@ namespace WebApplication6.Controllers
             // 1. Redirect users to request GitHub access
             var request = new OauthLoginRequest(clientId)
             {
-                Scopes = { "user", "notifications" },
+                Scopes = {"user", "notifications"},
                 State = csrf
             };
             var oauthLoginUrl = _client.Oauth.GetGitHubLoginUrl(request);
             return oauthLoginUrl.ToString();
         }
+
+        #endregion
+
+        #region Entity framework salva os objetos
+
+        /// <summary>
+        /// Salva no banco os os detalhes de cada repositório
+        /// </summary>
+        /// <param name="repositories"></param>
+        /// <returns></returns>
+        public async Task<List<RepositoryGitHub>> SaveRepositorys(IEnumerable<Octokit.Repository> repositories)
+        {
+            if (_context == null)
+                throw new Exception("Banco de dados não iniciado corretamente.");
+
+            try
+            {
+                var lst = new List<RepositoryGitHub>();
+                var enumerable = repositories as IList<Repository> ?? repositories.ToList();
+                Parallel.ForEach(enumerable, repository =>
+                {
+                    var newRepositoryGitHub = new RepositoryGitHub
+                    {
+                        Name = repository.Name,
+                        Description = repository.Description,
+                        ForksCount = repository.ForksCount,
+                        CloneUrl = repository.CloneUrl,
+                        HtmlUrl = repository.HtmlUrl,
+                        Created = repository.CreatedAt
+                    };
+                    lst.Add(newRepositoryGitHub);
+                });
+                _context.Repositories.AddRange(lst);
+                await _context.SaveChangesAsync();
+                return lst;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception(string.Format("Erro ao inserir repositório. {0}", ex.Message));
+            }
+        }
+
+        #endregion
     }
 }
